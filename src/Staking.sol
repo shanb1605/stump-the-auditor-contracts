@@ -59,6 +59,7 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
     uint256 public constant MAX_STAKES_PER_USER = 64;
     uint256 public constant MIN_STAKE_AMOUNT = 1e12;
     uint256 public constant MIN_FLUSH_PENALTY_AMOUNT = 1e15;
+    uint64 internal constant MAX_BLOCK_RESCAN_RANGE = 256;
 
     IERC20 public immutable stakingToken;
 
@@ -71,6 +72,7 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
     mapping(address => mapping(uint256 => uint64)) internal _stakeCreatedBlock;
     mapping(uint64 => uint256) internal _activeBoostedAmountByCreatedBlock;
     uint64 internal _latestStakeCreatedBlock;
+    bool internal _latestStakeCreatedBlockMayBeStale;
 
     uint256 public totalRawSupply;
     uint256 public totalBoostedSupply;
@@ -163,7 +165,7 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
         totalBoostedSupply -= boostedAmount;
         _userActiveStakeCount[msg.sender] -= 1;
         _userBoostedAmount[msg.sender] -= boostedAmount;
-        _activeBoostedAmountByCreatedBlock[createdBlock] -= boostedAmount;
+        _decreaseActiveBoostedAmountForCreatedBlock(createdBlock, boostedAmount);
 
         stakingToken.safeTransfer(msg.sender, amount);
 
@@ -190,7 +192,7 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
         totalBoostedSupply -= boostedAmount;
         _userActiveStakeCount[msg.sender] -= 1;
         _userBoostedAmount[msg.sender] -= boostedAmount;
-        _activeBoostedAmountByCreatedBlock[createdBlock] -= boostedAmount;
+        _decreaseActiveBoostedAmountForCreatedBlock(createdBlock, boostedAmount);
 
         _distributeOrQueuePenalty(msg.sender, penalty, createdBlock);
 
@@ -558,13 +560,50 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
         _userBoostedAmount[user] += boostedAmount;
         _stakeCreatedBlock[user][stakeId] = createdBlock;
         _activeBoostedAmountByCreatedBlock[createdBlock] += boostedAmount;
-        if (createdBlock > _latestStakeCreatedBlock) _latestStakeCreatedBlock = createdBlock;
+        if (createdBlock > _latestStakeCreatedBlock || _latestStakeCreatedBlockMayBeStale) {
+            _latestStakeCreatedBlock = createdBlock;
+            _latestStakeCreatedBlockMayBeStale = false;
+        }
+    }
+
+    function _decreaseActiveBoostedAmountForCreatedBlock(uint64 createdBlock, uint128 boostedAmount) internal {
+        uint256 remaining = _activeBoostedAmountByCreatedBlock[createdBlock] - boostedAmount;
+        _activeBoostedAmountByCreatedBlock[createdBlock] = remaining;
+
+        if (createdBlock == _latestStakeCreatedBlock && remaining == 0) {
+            _refreshLatestActiveStakeCreatedBlock(createdBlock);
+        }
+    }
+
+    function _refreshLatestActiveStakeCreatedBlock(uint64 emptiedCreatedBlock) internal {
+        uint64 cursor = emptiedCreatedBlock;
+        uint64 scanned;
+
+        while (cursor != 0 && scanned < MAX_BLOCK_RESCAN_RANGE) {
+            unchecked {
+                --cursor;
+                ++scanned;
+            }
+
+            if (_activeBoostedAmountByCreatedBlock[cursor] != 0) {
+                _latestStakeCreatedBlock = cursor;
+                _latestStakeCreatedBlockMayBeStale = false;
+                return;
+            }
+        }
+
+        if (cursor == 0) {
+            _latestStakeCreatedBlock = 0;
+            _latestStakeCreatedBlockMayBeStale = false;
+        } else {
+            _latestStakeCreatedBlockMayBeStale = true;
+        }
     }
 
     function _distributeOrQueuePenalty(address penalizedUser, uint128 penalty, uint64 penalizedCreatedBlock) internal {
         RewardData storage reward = rewardData[primaryRewardToken];
         if (
-            _latestStakeCreatedBlock > penalizedCreatedBlock
+            _latestStakeCreatedBlockMayBeStale || _latestStakeCreatedBlock > penalizedCreatedBlock
                 || _activeBoostedAmountByCreatedBlock[penalizedCreatedBlock] != 0
         ) {
             reward.queuedPenalty += penalty;

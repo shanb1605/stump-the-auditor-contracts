@@ -376,6 +376,73 @@ contract StakingTest is BaseTest {
         assertApproxEqAbs(staking.earned(bob, address(stakingToken)), 10 ether, DUST_TOLERANCE);
     }
 
+    function testEmergencyPenaltyRewardsOlderIncumbentAfterLaterStakeExits() public {
+        vm.prank(owner);
+        uint8 unlockedTier = staking.setLockTier(0, 10_000);
+
+        uint256 startBlock = block.number;
+        _stake(alice, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 1);
+        _stake(bob, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 2);
+        _stake(charlie, DEFAULT_STAKE, unlockedTier);
+
+        vm.prank(charlie);
+        staking.unstake(0);
+
+        vm.prank(bob);
+        staking.emergencyUnstake(0);
+
+        (,,,,,, uint256 queuedPenalty) = staking.rewardData(address(stakingToken));
+        assertEq(queuedPenalty, 0);
+        assertApproxEqAbs(staking.earned(alice, address(stakingToken)), 10 ether, DUST_TOLERANCE);
+        assertEq(staking.earned(bob, address(stakingToken)), 0);
+        assertEq(staking.earned(charlie, address(stakingToken)), 0);
+    }
+
+    function testEmergencyPenaltyQueuesWhenLaterStakeStillActive() public {
+        uint256 startBlock = block.number;
+        _stake(alice, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 1);
+        _stake(bob, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 2);
+        _stake(charlie, DEFAULT_STAKE, tier30);
+
+        vm.prank(bob);
+        staking.emergencyUnstake(0);
+
+        (,,,,,, uint256 queuedPenalty) = staking.rewardData(address(stakingToken));
+        assertEq(queuedPenalty, 10 ether);
+        assertEq(staking.earned(alice, address(stakingToken)), 0);
+        assertEq(staking.earned(charlie, address(stakingToken)), 0);
+    }
+
+    function testEmergencyPenaltyQueuesWhenLaterStakeExitsAndRestakes() public {
+        vm.prank(owner);
+        uint8 unlockedTier = staking.setLockTier(0, 10_000);
+
+        uint256 startBlock = block.number;
+        _stake(alice, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 1);
+        _stake(bob, DEFAULT_STAKE, tier30);
+        vm.roll(startBlock + 2);
+        _stake(charlie, DEFAULT_STAKE, unlockedTier);
+
+        vm.prank(charlie);
+        staking.unstake(0);
+
+        vm.roll(startBlock + 3);
+        _stake(charlie, DEFAULT_STAKE, tier30);
+
+        vm.prank(bob);
+        staking.emergencyUnstake(0);
+
+        (,,,,,, uint256 queuedPenalty) = staking.rewardData(address(stakingToken));
+        assertEq(queuedPenalty, 10 ether);
+        assertEq(staking.earned(alice, address(stakingToken)), 0);
+        assertEq(staking.earned(charlie, address(stakingToken)), 0);
+    }
+
     function testEmergencyPenaltyCannotBeCapturedByLateStaker() public {
         _stake(bob, DEFAULT_STAKE, tier30);
         vm.roll(block.number + 1);
