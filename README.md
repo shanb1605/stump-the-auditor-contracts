@@ -6,10 +6,21 @@ These are the **unmodified base contracts** — secure as written, verified acro
 
 ---
 
+## Challenge Window
+
+**2026-04-28, 9:00 AM ET → 2026-05-12, 23:59 ET.** Rolling submissions. Deadline is firm.
+
+- Apply: https://docs.google.com/forms/d/1dPBQaHMjTGleUUfIo0CJtqygHTSuFULY_l-pQX6kQ-4
+- Submission form URL is sent in your approval email after acceptance.
+- Results announced: Wed 2026-05-20
+
+---
+
 ## Challenge Rules (Quick Version)
 
 - **Modification budget:** ≤50 added or modified lines (ignoring whitespace; comments count)
 - **Scan budget:** 4 AI Auditor Lite scans total, use them however you want across the 3 contracts
+- **Submissions per person:** up to 3, one per contract
 - **Must compile** under this repo's Foundry config
 - **Can't remove or rename** external/public function signatures
 - **No new imports** beyond what the contract already uses
@@ -43,11 +54,21 @@ Test: could the diff read as a genuine developer mistake in a PR review? If yes,
 
 - Modified `.sol`
 - Unified diff vs the base
-- AI Auditor Lite scan link (public, hash must match submitted file)
+- AI Auditor Lite scan URL (we verify internally; the URL does not need to be publicly shareable)
 - 200–500 word writeup: what the bug is, how to exploit, impact, why a dev could realistically ship this
 - Severity claim (Critical / High) with one-paragraph justification
 
-Full rules + submission form: **[challenge page / to be announced]**
+Full rules and submission form linked at the top of this README.
+
+### Prizes
+
+| Place | Prize |
+|---|---|
+| 1st | $1,000 AI Auditor credits + interview fast-track + public recognition |
+| 2nd | $500 AI Auditor credits + interview fast-track + public recognition |
+| 3rd | $250 AI Auditor credits + interview fast-track + public recognition |
+
+Every valid stump gets public recognition (opt-in). Interview fast-track = profile handed directly to CertiK's auditor hiring team with challenge context.
 
 ---
 
@@ -153,9 +174,9 @@ See `test/PlantPoC.t.sol.example` — copy to `test/PlantPoC.t.sol`, plant your 
 
 1. Modify one of the three contracts (≤50 lines).
 2. `forge build` must still pass.
-3. Run AI Auditor Lite against the modified `.sol`.
+3. Run AI Auditor Lite at https://aiauditor.certik.com against the modified `.sol`.
 4. If Lite flags your bug, one scan is used — you have 3 left total.
-5. If Lite doesn't flag it, grab the public scan link and submit via the challenge form.
+5. If Lite doesn't flag it, copy the scan URL and submit via the challenge form.
 
 Each scan is one attempt. Use them however you want — all 4 on one contract, spread across contracts, whatever. Max mode is disabled for the challenge; everyone is evaluated on the same Lite baseline.
 
@@ -182,7 +203,7 @@ Base contracts have passed:
 - Foundry invariant tests (100+ runs × 50 depth)
 - Foundry fuzz tests (1000+ runs)
 
-If you find a real bug in the unmodified base (not something you planted), email **[challenge@certik.com]** — we'll patch, announce publicly, and reset affected scan counts.
+If you find a real bug in the unmodified base (not something you planted), email **dickson.wu@certik.com** — we'll patch, announce publicly, and reset affected scan counts.
 
 ---
 
@@ -199,6 +220,12 @@ This repo excludes:
 - Internal review docs (findings and fixes we've already addressed)
 
 Test suite is open — read it freely. It won't give away a plant idea; it validates the contract's intended behavior, which is the thing you need to break.
+
+---
+
+## Contact
+
+Questions about rules or scan resets: **dickson.wu@certik.com**
 
 ---
 
