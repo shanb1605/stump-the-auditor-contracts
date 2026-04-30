@@ -592,7 +592,7 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
         claimed = rewards[user][rewardToken];
         if (claimed == 0) return 0;
 
-        rewards[user][rewardToken] = 0;
+        
         IERC20(rewardToken).safeTransfer(user, claimed);
 
         emit RewardClaimed(user, rewardToken, claimed);
