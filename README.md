@@ -1,4 +1,4 @@
-# Shanmuga's Challenge Submissions
+# Shanmuga's Challenge Repo
 
 # Stump the AI Auditor
 
