@@ -183,28 +183,28 @@ contract Lending is ILendingPool, Ownable2Step, ReentrancyGuard, Pausable {
 
         Reserve storage reserve = _getReserveStorage(asset);
         if (!reserve.borrowEnabled) revert BorrowDisabled(asset);
-        if (userScaledSupply[to][asset] != 0) revert SameAssetCollateralDebtNotAllowed();
+        if (userScaledSupply[msg.sender][asset] != 0) revert SameAssetCollateralDebtNotAllowed();
 
         // rounding: borrow mints scaled debt UP so the borrower owes at least the requested amount.
         uint256 scaledAmount = Math.mulDiv(amount, RAY, reserve.borrowIndex, Math.Rounding.Ceil);
         if (scaledAmount == 0) revert ZeroAmount();
 
-        userScaledBorrow[to][asset] += scaledAmount;
+        userScaledBorrow[msg.sender][asset] += scaledAmount;
         reserve.totalScaledBorrow = (uint256(reserve.totalScaledBorrow) + scaledAmount).toUint128();
 
-        if (!_hasBorrow[to][asset]) {
-            _hasBorrow[to][asset] = true;
-            userBorrowAssets[to].push(asset);
+        if (!_hasBorrow[msg.sender][asset]) {
+            _hasBorrow[msg.sender][asset] = true;
+            userBorrowAssets[msg.sender].push(asset);
         }
 
-        (,,, uint256 healthFactor) = _getUserAccountData(to);
+        (,,, uint256 healthFactor) = _getUserAccountData(msg.sender);
         if (healthFactor < MIN_HEALTH_FACTOR) revert HealthFactorBelowThreshold(healthFactor);
-        _requireWithinBorrowCapacity(to);
+        _requireWithinBorrowCapacity(msg.sender);
 
         uint256 liquidity = _availableLiquidity(asset, reserve.accruedReserves);
         if (liquidity < amount) revert InsufficientLiquidity(asset, amount, liquidity);
 
-        IERC20(asset).safeTransfer(msg.sender, amount);
+        IERC20(asset).safeTransfer(to, amount);
 
         emit Borrowed(msg.sender, asset, amount, scaledAmount);
     }
@@ -240,8 +240,10 @@ contract Lending is ILendingPool, Ownable2Step, ReentrancyGuard, Pausable {
 
         userScaledBorrow[onBehalfOf][asset] = scaledDebt - scaledAmount;
         reserve.totalScaledBorrow = (uint256(reserve.totalScaledBorrow) - scaledAmount).toUint128();
-        
-        _removeBorrowAsset(onBehalfOf, asset);
+
+        if (userScaledBorrow[onBehalfOf][asset] == 0) {
+            _removeBorrowAsset(onBehalfOf, asset);
+        }
 
         emit Repaid(onBehalfOf, asset, repaid, scaledAmount, msg.sender);
     }
@@ -794,13 +796,14 @@ contract Lending is ILendingPool, Ownable2Step, ReentrancyGuard, Pausable {
     function _getAssetValueWad(address asset, uint256 amount) internal view returns (uint256 valueWad) {
         if (amount == 0) return 0;
 
+        Reserve memory reserve = _getStoredReserve(asset);
         (uint256 price, uint256 updatedAt) = oracle.getPrice(asset);
         if (price == 0) revert PriceZero(asset);
         if (block.timestamp - updatedAt > MAX_ORACLE_STALENESS) {
             revert PriceStale(asset, updatedAt, block.timestamp);
         }
 
-        valueWad = LendingMath.assetValueWad(amount, MAX_RESERVE_DECIMALS, price);
+        valueWad = LendingMath.assetValueWad(amount, reserve.decimals, price);
     }
 
     function _getAmountFromValueWad(address asset, uint256 valueWad) internal view returns (uint256 amount) {
@@ -814,13 +817,14 @@ contract Lending is ILendingPool, Ownable2Step, ReentrancyGuard, Pausable {
     {
         if (valueWad == 0) return 0;
 
+        Reserve memory reserve = _getStoredReserve(asset);
         (uint256 price, uint256 updatedAt) = oracle.getPrice(asset);
         if (price == 0) revert PriceZero(asset);
         if (block.timestamp - updatedAt > MAX_ORACLE_STALENESS) {
             revert PriceStale(asset, updatedAt, block.timestamp);
         }
 
-        amount = LendingMath.amountFromValueWad(valueWad, MAX_RESERVE_DECIMALS, price, rounding);
+        amount = LendingMath.amountFromValueWad(valueWad, reserve.decimals, price, rounding);
     }
 
     function _availableLiquidity(address asset, uint256 accruedReserves) internal view returns (uint256 liquidity) {

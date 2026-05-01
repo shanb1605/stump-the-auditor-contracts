@@ -199,10 +199,13 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
     function claim() external nonReentrant {
         _updateRewardAll(msg.sender);
 
+        uint256 claimed;
         uint256 rewardsLength = rewardTokensList.length;
         for (uint256 i; i < rewardsLength; ++i) {
-            _claimReward(msg.sender, rewardTokensList[i]);
+            claimed += _claimReward(msg.sender, rewardTokensList[i]);
         }
+
+        if (claimed == 0) revert NothingToClaim();
     }
 
     /// @notice Claims a single accrued reward token for the caller.
@@ -211,7 +214,8 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
         _requireRewardTokenListed(rewardToken);
         _updateRewardAll(msg.sender);
 
-        _claimReward(msg.sender, rewardToken);
+        uint256 claimed = _claimReward(msg.sender, rewardToken);
+        if (claimed == 0) revert NothingToClaim();
     }
 
     /// @notice Compounds accrued primary-token rewards into a new stake.
@@ -586,8 +590,9 @@ contract Staking is IStaking, Ownable2Step, ReentrancyGuard, Pausable {
 
     function _claimReward(address user, address rewardToken) internal returns (uint256 claimed) {
         claimed = rewards[user][rewardToken];
-        require(claimed != 0, "Nothing to Claim");
+        if (claimed == 0) return 0;
 
+        rewards[user][rewardToken] = 0;
         IERC20(rewardToken).safeTransfer(user, claimed);
 
         emit RewardClaimed(user, rewardToken, claimed);
